@@ -88,13 +88,12 @@ int main(int argc, char *argv[]) {
 	int lightvalues[15] = {0};
 	int countarray[256] = {0};
 	unsigned int i,index=0;
+	int running_as_root=0;
 
-	// make sure we are run as a regular user
 	uid = getuid();
 	euid = geteuid();
 	if (uid == 0 || euid == 0) {
-		fprintf(stderr, "lightum must NOT be run as root.\n");
-		exit(1);
+		running_as_root = 1;
 	}
 
 	// overwrite defaults with config file
@@ -159,6 +158,9 @@ int main(int argc, char *argv[]) {
 				break;
 		}
 	}
+	if (running_as_root) {
+		conf.ignoresession = 1;
+	}
 
 	if (verbose) printf("CONFIG:\n\tmanualmode: %d\n",conf.manualmode);
 	if (verbose) printf("\tignoreuser: %d\n",conf.ignoreuser);
@@ -213,24 +215,28 @@ int main(int argc, char *argv[]) {
 	if (conf.workmode == 2 || conf.workmode == 3) {
 		backlight_restore=get_screen_backlight_value();
 
-		// detect dbus backend: 0: gnome, 1: kde
-		tmp = dbus_set_screen_backlight_value_gnome(acpi_to_dbus_backlight(backlight_restore));
-		if (tmp == -1) {
-			tmp = dbus_set_screen_backlight_value_kde(acpi_to_dbus_backlight(backlight_restore));
-			if (tmp == -1) {
-				tmp = set_screen_xbacklight_value(acpi_to_dbus_backlight(backlight_restore));
-				if ( tmp == -1 ) {
-					fprintf (stderr, "Can't manage screen backlight on this system.\nPlease disable backlight with config option 'workmode='1' or command line switch '-w 1'.\nIf you believe this is an error, open a bug report: https://github.com/poliva/lightum/issues\n");
-					exit (1);
-				} else {
-					dbus_backend=2;
-				}
-			} else {
-				dbus_backend=1;	
-			}
-
+		// detect dbus backend: 0: gnome, 1: kde, 2: ?, 3: sys files
+		if (running_as_root) {
+			dbus_backend = 3;
 		} else {
-			dbus_backend=0;
+			tmp = dbus_set_screen_backlight_value_gnome(acpi_to_dbus_backlight(backlight_restore));
+			if (tmp == -1) {
+				tmp = dbus_set_screen_backlight_value_kde(acpi_to_dbus_backlight(backlight_restore));
+				if (tmp == -1) {
+					tmp = set_screen_xbacklight_value(acpi_to_dbus_backlight(backlight_restore));
+					if ( tmp == -1 ) {
+						fprintf (stderr, "Can't manage screen backlight on this system.\nPlease disable backlight with config option 'workmode='1' or command line switch '-w 1'.\nIf you believe this is an error, open a bug report: https://github.com/poliva/lightum/issues\n");
+						exit (1);
+					} else {
+						dbus_backend=2;
+					}
+				} else {
+					dbus_backend=1;	
+				}
+
+			} else {
+				dbus_backend=0;
+			}
 		}
 	}
 
@@ -411,7 +417,7 @@ int main(int argc, char *argv[]) {
 					brightness_restoreflag=1;
 				}
 				if (debug == 1 || debug == 3) printf ("-> set keyboard brightness: %d -> %d\n",brightness_prev,brightness);
-				fading(brightness_prev,brightness);
+				fading(brightness_prev,brightness, dbus_backend);
 				usleep(1500);
 				brightness=get_keyboard_brightness_value();
 				brightness_prev=brightness;
@@ -422,7 +428,7 @@ int main(int argc, char *argv[]) {
 					if (verbose) printf("-> Detected user brightness change, current brightness is set to %d\n", tmp);
 					if (conf.ignoreuser) {
 						if (debug == 1 || debug == 3) printf ("\n*** forcing brightness from %d to %d\n", tmp, brightness);
-						fading(tmp,brightness);
+						fading(tmp,brightness, dbus_backend);
 					}
 				}
 			}

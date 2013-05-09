@@ -11,9 +11,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <string.h>
-
+#include <sys/stat.h>
+#include <signal.h>
 #include <dbus/dbus.h>
+
+ #include "lightum.h"
 
 extern int set_screen_xbacklight_value(int backlight);
 
@@ -90,8 +95,35 @@ int get_screensaver_active() {
 	return retval;
 }
 
+int set_keyboard_brightness_sys_value(int backlight) {
+	int fd;
+	int retval;
+	int len;
+	char buf[5];
+	const char *kbd_backlight="/sys/devices/platform/applesmc.768/leds/smc::kbd_backlight/brightness";
 
-int set_keyboard_brightness_value(int brightness) {
+	fd = open(kbd_backlight, O_WRONLY);
+	if (fd < 0) {
+		perror(kbd_backlight);
+		fprintf(stderr, "Can't open %s\n", kbd_backlight);
+		exit(1);
+	}
+
+	len = sprintf(buf, "%d", backlight);
+	retval = write(fd, buf, len);
+	if (retval < 0) {
+		fprintf(stderr, "Can't write to %s\n", kbd_backlight);
+		exit(1);
+	}
+	close(fd);
+	return 0;
+}
+
+int set_keyboard_brightness_value(int brightness, int backend) {
+
+	if (backend == 3) {
+		return set_keyboard_brightness_sys_value(brightness);
+	}
 
 	DBusConnection *connection;
 	DBusError error;
@@ -378,6 +410,31 @@ int dbus_set_screen_backlight_value_kde(int backlight) {
 	return retval;
 }
 
+int set_screen_sys_value(int backlight) {
+	int fd;
+	int retval;
+	char buf[5];
+	int len;
+	const char *scr_backlight="/sys/class/backlight/acpi_video0/brightness";
+
+	fd = open(scr_backlight, O_WRONLY);
+	if (fd < 0) {
+		perror(scr_backlight);
+		fprintf(stderr, "Can't open %s\n", scr_backlight);
+		exit(1);
+	}
+
+	backlight = dbus_to_acpi_backlight(backlight);
+	len = sprintf(buf, "%d", backlight);
+	retval = write(fd, buf, len);
+	if (retval < 0) {
+		fprintf(stderr, "Can't write to %s\n", scr_backlight);
+		exit(1);
+	}
+	close(fd);
+	return 0;
+}
+
 int dbus_set_screen_backlight_value(int backlight, int backend) {
 
 	int ret=-1;
@@ -385,6 +442,7 @@ int dbus_set_screen_backlight_value(int backlight, int backend) {
 	if (backend == 0) ret = dbus_set_screen_backlight_value_gnome(backlight); 
 	if (backend == 1) ret = dbus_set_screen_backlight_value_kde(backlight);
 	if (backend == 2) ret = set_screen_xbacklight_value(backlight);
+	if (backend == 3) ret = set_screen_sys_value(backlight);
 
 	return ret;
 }

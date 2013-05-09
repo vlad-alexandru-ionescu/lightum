@@ -204,7 +204,7 @@ int calculate_screen_backlight_value(int light, int maxbacklight, int minbacklig
 	return backlight;
 }
 
-void fading(int from, int to) {
+void fading(int from, int to, int backend) {
 
 	int step;
 
@@ -213,24 +213,24 @@ void fading(int from, int to) {
 
 	if (from > to) {
 		step=(from-to)/4;
-		set_keyboard_brightness_value(from-step);
+		set_keyboard_brightness_value(from-step, backend);
 		usleep(100000);
-		set_keyboard_brightness_value(from-step*2);
+		set_keyboard_brightness_value(from-step*2, backend);
 		usleep(100000);
-		set_keyboard_brightness_value(from-step*3);
+		set_keyboard_brightness_value(from-step*3, backend);
 		usleep(100000);
-		set_keyboard_brightness_value(to);
+		set_keyboard_brightness_value(to, backend);
 	}
 
 	if (from < to) {
 		step=(to-from)/4;
-		set_keyboard_brightness_value(to-step*3);
+		set_keyboard_brightness_value(to-step*3, backend);
 		usleep(20000);
-		set_keyboard_brightness_value(to-step*2);
+		set_keyboard_brightness_value(to-step*2, backend);
 		usleep(20000);
-		set_keyboard_brightness_value(to-step);
+		set_keyboard_brightness_value(to-step, backend);
 		usleep(20000);
-		set_keyboard_brightness_value(to);
+		set_keyboard_brightness_value(to, backend);
 	}
 }
 
@@ -278,7 +278,7 @@ float get_session_idle_time(Display *display) {
 void signal_handler(int sig) {
 
 	(void) sig;
-	set_keyboard_brightness_value(0);
+	//set_keyboard_brightness_value(0, backend);
 	remove_pid_file();
 	printf("Killed with %d signal!\n",sig);
 	exit(1);
